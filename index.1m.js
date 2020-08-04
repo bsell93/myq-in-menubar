@@ -58,8 +58,15 @@ async function main() {
     garageDoors.forEach((door) => {
         const isOpen = isDoorOpen(door);
         const text = `${isOpen ? 'Close' : 'Open'} ${door.name}`;
-        const bash = `node ${process.argv[1]} ${door.serialNumber} ${isOpen}`;
-        menu.push({ bash, terminal: false, text });
+        menu.push({
+            bash: '/usr/local/bin/node',
+            param1: process.argv[1],
+            param2: door.serialNumber,
+            param3: isOpen,
+            terminal: false,
+            refresh: true,
+            text,
+        });
     });
     bitbar(menu);
 }
