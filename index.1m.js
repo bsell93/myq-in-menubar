@@ -1,10 +1,11 @@
 #!/usr/bin/env /usr/local/bin/node
 const fs = require('fs');
 const bitbar = require('bitbar');
-const { constants, myQ } = require('myq-api');
+const MyQ = require('myq-api');
 const { email, password } = require('./.credentials');
+const moment = require('moment');
 
-const account = new myQ(email, password);
+const account = new MyQ();
 
 function base64_encode(file) {
     return fs.readFileSync(__dirname + '/' + file, 'base64');
@@ -12,7 +13,7 @@ function base64_encode(file) {
 
 async function login() {
     try {
-        await account.login();
+        await account.login(email, password);
     } catch (error) {
         console.error(err);
     }
@@ -21,7 +22,9 @@ async function login() {
 const GARAGE_DOOR_DEVICE_TYPE_ID = 7;
 async function getGarageDoors() {
     try {
-        return (await account.getDevices(constants.allDeviceTypes.virtualGarageDoorOpener)).devices;
+        return (await account.getDevices()).devices.filter(
+            (x) => x.device_type === 'virtualgaragedooropener'
+        );
     } catch (error) {
         console.error(error);
         return [];
@@ -33,14 +36,19 @@ async function toggleGarageDoor(serialNumber, isOpen) {
         if (typeof isOpen === 'string') {
             newOpenValue = !(isOpen === 'true');
         }
-        console.log(await account.setDoorOpen(serialNumber, newOpenValue));
+        console.log(
+            await account.setDoorState(
+                serialNumber,
+                newOpenValue ? MyQ.actions.door.OPEN : MyQ.actions.door.CLOSE
+            )
+        );
     } catch (error) {
         console.error(error);
     }
 }
 
 function isDoorOpen(door) {
-    return door.doorState === constants.doorStates[1];
+    return door.state.door_state === 'open';
 }
 
 async function main() {
@@ -61,11 +69,23 @@ async function main() {
         menu.push({
             bash: '/usr/local/bin/node',
             param1: process.argv[1],
-            param2: door.serialNumber,
+            param2: door.serial_number,
             param3: isOpen,
             terminal: false,
             refresh: true,
             text,
+        });
+        menu.push({
+            text: `Last Updated: ${moment(door.state.last_update).format('lll')}`,
+        });
+        menu.push({
+            text: `Last Status: ${moment(door.state.last_status).format('lll')}`,
+        });
+        menu.push({
+            text: `Is Battery Low: ${door.state.dps_low_battery_mode}`,
+        });
+        menu.push({
+            text: `Is Online: ${door.state.online}`,
         });
     });
     bitbar(menu);
