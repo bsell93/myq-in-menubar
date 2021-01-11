@@ -6,14 +6,26 @@ const { email, password } = require('./.credentials');
 const moment = require('moment');
 
 const account = new MyQ();
+const menu = [];
 
 function base64_encode(file) {
     return fs.readFileSync(__dirname + '/' + file, 'base64');
 }
 
+async function tryCatchWrapper(asyncMethod, prettyName, catchReturn = null) {
+    try {
+        return await asyncMethod();
+    } catch (error) {
+        menu.push({
+            text: `${MyQ.constants.codes[error.code]} Error Occurred while ${prettyName}: ${error}`,
+        });
+        return catchReturn;
+    }
+}
+
 async function login() {
     try {
-        await account.login(email, password);
+        await tryCatchWrapper(() => account.login(email, password), 'logging in');
     } catch (error) {
         console.error(err);
     }
@@ -21,14 +33,9 @@ async function login() {
 
 const GARAGE_DOOR_DEVICE_TYPE_ID = 7;
 async function getGarageDoors() {
-    try {
-        return (await account.getDevices()).devices.filter(
-            (x) => x.device_type === 'virtualgaragedooropener'
-        );
-    } catch (error) {
-        console.error(error);
-        return [];
-    }
+    return (
+        await tryCatchWrapper(() => account.getDevices(), 'getting devices', { devices: [] })
+    ).devices.filter((x) => x.device_type === 'virtualgaragedooropener');
 }
 async function toggleGarageDoor(serialNumber, isOpen) {
     try {
@@ -37,9 +44,13 @@ async function toggleGarageDoor(serialNumber, isOpen) {
             newOpenValue = !(isOpen === 'true');
         }
         console.log(
-            await account.setDoorState(
-                serialNumber,
-                newOpenValue ? MyQ.actions.door.OPEN : MyQ.actions.door.CLOSE
+            await tryCatchWrapper(
+                () =>
+                    account.setDoorState(
+                        serialNumber,
+                        newOpenValue ? MyQ.actions.door.OPEN : MyQ.actions.door.CLOSE
+                    ),
+                'setting door state'
             )
         );
     } catch (error) {
@@ -52,7 +63,6 @@ function isDoorOpen(door) {
 }
 
 async function main() {
-    const menu = [];
     await login();
     const garageDoors = await getGarageDoors();
     // console.log(garageDoors);
@@ -60,8 +70,8 @@ async function main() {
     const image = base64_encode(anyOpen ? 'images/open.png' : 'images/closed.png');
     // console.log({ image });
     const menubarIcon = { image, text: '' };
-    menu.push(menubarIcon);
-    menu.push(bitbar.separator);
+    menu.unshift(bitbar.separator);
+    menu.unshift(menubarIcon);
     // add item to close/open garage relative to garage state
     garageDoors.forEach((door) => {
         const isOpen = isDoorOpen(door);
